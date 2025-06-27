@@ -588,9 +588,85 @@
             websocketService.disconnect();
         },
         
-        // Properties
+        // WebSocket callback methods
+        onElementClick: function(callback) {
+            websocketService.onElementClick(callback);
+        },
+        
+        onInstruction: function(callback) {
+            websocketService.onInstruction(callback);
+        },
+        
+        // Element data methods
+        sendElementClick: function(elementData) {
+            websocketService.sendElementClick(elementData);
+        },
+        
+        // Injection management methods
+        getInjections: function() {
+            return websocketService.getInjections();
+        },
+        
+        // Instruction handling methods (manual execution)
+        handleInstruction: function(instruction) {
+            return websocketService.handleInstruction(instruction);
+        },
+        
+        shouldApplyInstruction: function(instruction) {
+            return websocketService.shouldApplyInstruction(instruction);
+        },
+        
+        appendHTML: function(instruction) {
+            return websocketService.appendHTML(instruction);
+        },
+        
+        replaceHTML: function(instruction) {
+            return websocketService.replaceHTML(instruction);
+        },
+        
+        removeElement: function(instruction) {
+            return websocketService.removeElement(instruction);
+        },
+        
+        // Connection management methods
+        resetConnectionAttempts: function() {
+            websocketService.resetConnectionAttempts();
+        },
+        
+        // Debug and utility methods
+        setDynaDubbing: function(enabled) {
+            websocketService.isDynaDubbing = !!enabled;
+            console.log('Dyna dubbing set to:', websocketService.isDynaDubbing);
+        },
+        
+        getDynaDubbing: function() {
+            return websocketService.isDynaDubbing;
+        },
+        
+        // Element tracking utility methods
+        getElementPath: function(element) {
+            return elementTracker.getElementPath(element);
+        },
+        
+        sendElementData: function(element) {
+            return elementTracker.sendElementData(element);
+        },
+        
+        // Connection state properties
         get isConnected() {
             return websocketService.isConnected;
+        },
+        
+        get isConnecting() {
+            return websocketService.isConnecting;
+        },
+        
+        get connectionAttempts() {
+            return websocketService.connectionAttempts;
+        },
+        
+        get maxConnectionAttempts() {
+            return websocketService.maxConnectionAttempts;
         },
         
         get isTrackingEnabled() {
@@ -601,5 +677,4 @@
         websocketService: websocketService,
         elementTracker: elementTracker
     };
-})); 
 })); 
