@@ -348,7 +348,6 @@
     // Element Clicking Tracker Class
     function ElementClickingTracker() {
         this.enabled = false;
-        this.previouslyFocusedElements = new Set();
         this.throttledClickHandler = null;
         this.websocketService = null; // Will be set later
     }
@@ -375,81 +374,8 @@
                 return;
             }
             
-            // Special handling for labels
-            if (tagName === 'label') {
-                event.preventDefault();
-            }
-            
-            // Remove focus from any currently focused element
-            if (document.activeElement && document.activeElement !== element) {
-                document.activeElement.blur();
-            }
-            
-            // Remove visual styling from all previously focused elements
-            self.previouslyFocusedElements.forEach(function(prevElement) {
-                if (prevElement !== element) {
-                    prevElement.style.outline = '';
-                    prevElement.style.outlineOffset = '';
-                }
-            });
-            
-            // Add focus to the clicked element
-            if (element && typeof element.focus === 'function') {
-                var focusableElements = ['input', 'button', 'select', 'textarea', 'a', 'label'];
-                var isFocusable = focusableElements.indexOf(tagName) !== -1 || 
-                               element.hasAttribute('tabindex') || 
-                               element.hasAttribute('contenteditable');
-                
-                var originalOutline = element.style.outline;
-                var originalOutlineOffset = element.style.outlineOffset;
-                
-                var applyBlueFocus = function() {
-                    element.style.outline = '2px solid #007bff';
-                    element.style.outlineOffset = '2px';
-                };
-                
-                if (isFocusable) {
-                    element.focus();
-                    applyBlueFocus();
-                    self.previouslyFocusedElements.add(element);
-                    console.log('Focus applied to element:', self.getElementPath(element));
-                } else {
-                    // For non-focusable elements, make them focusable temporarily
-                    var originalTabIndex = element.getAttribute('tabindex');
-                    element.setAttribute('tabindex', '-1');
-                    element.focus();
-                    applyBlueFocus();
-                    self.previouslyFocusedElements.add(element);
-                    console.log('Focus applied to non-focusable element:', self.getElementPath(element));
-                    
-                    var handleBlur = function() {
-                        element.style.outline = originalOutline;
-                        element.style.outlineOffset = originalOutlineOffset;
-                        if (originalTabIndex === null) {
-                            element.removeAttribute('tabindex');
-                        } else {
-                            element.setAttribute('tabindex', originalTabIndex);
-                        }
-                        self.previouslyFocusedElements.delete(element);
-                        element.removeEventListener('blur', handleBlur);
-                    };
-                    
-                    element.addEventListener('blur', handleBlur);
-                    
-                    // Send element data
-                    self.sendElementData(element);
-                    return;
-                }
-                
-                var handleBlur = function() {
-                    element.style.outline = originalOutline;
-                    element.style.outlineOffset = originalOutlineOffset;
-                    self.previouslyFocusedElements.delete(element);
-                    element.removeEventListener('blur', handleBlur);
-                };
-                
-                element.addEventListener('blur', handleBlur);
-            }
+            // Highlight the clicked element temporarily
+            self.highlightElement(element);
             
             // Send element data
             self.sendElementData(element);
@@ -487,14 +413,6 @@
             this.throttledClickHandler = null;
         }
 
-        // Clear all focused elements
-        var self = this;
-        this.previouslyFocusedElements.forEach(function(element) {
-            element.style.outline = '';
-            element.style.outlineOffset = '';
-        });
-        this.previouslyFocusedElements.clear();
-
         console.log('Element click tracking disabled');
     };
 
@@ -531,6 +449,30 @@
         }
         
         return path.join(' > ');
+    };
+
+    // Function to highlight a clicked element temporarily
+    ElementClickingTracker.prototype.highlightElement = function(element) {
+        if (!element || element.nodeType !== 1) {
+            return;
+        }
+
+        // Store original styles to restore later
+        var originalOutline = element.style.outline;
+        var originalOutlineOffset = element.style.outlineOffset;
+        var originalTransition = element.style.transition;
+        
+        // Apply highlight styles
+        element.style.outline = '2px solid rgba(0, 255, 98, 0.7)';
+        element.style.outlineOffset = '2px';
+        element.style.transition = 'outline 0.2s ease-in-out';
+        
+        // Remove highlight after 2 seconds
+        setTimeout(function() {
+            element.style.outline = originalOutline;
+            element.style.outlineOffset = originalOutlineOffset;
+            element.style.transition = originalTransition;
+        }, 2000);
     };
 
     ElementClickingTracker.prototype.sendElementData = function(element) {
@@ -653,6 +595,10 @@
         
         sendElementData: function(element) {
             return elementTracker.sendElementData(element);
+        },
+        
+        highlightElement: function(element) {
+            return elementTracker.highlightElement(element);
         },
         
         // Connection state properties
