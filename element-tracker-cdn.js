@@ -350,7 +350,7 @@
         this.enabled = false;
         this.previouslyFocusedElements = new Set();
         this.throttledClickHandler = null;
-        this.websocketService = new WebSocketService();
+        this.websocketService = null; // Will be set later
     }
 
     ElementClickingTracker.prototype.enable = function() {
@@ -568,6 +568,9 @@
     // Create instances
     var websocketService = new WebSocketService();
     var elementTracker = new ElementClickingTracker();
+    
+    // Link the websocket service to element tracker
+    elementTracker.websocketService = websocketService;
 
     // Public API
     return {
