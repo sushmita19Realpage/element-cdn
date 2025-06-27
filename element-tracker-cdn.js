@@ -28,10 +28,23 @@
         this.onElementClickCallbacks = [];
         this.onInstructionCallbacks = [];
         this.injectedContents = new Map();
+        this.isDynaDubbing = false;
+
+        // Set up the message event listener for debugging mode
+        var self = this;
+        if (typeof window !== 'undefined') {
+            window.addEventListener('message', function(event) {
+                console.log("Received message:", event.data);
+                if (event.data && event.data.type === 'SET_DEBUGGING') {
+                    console.log('Dyna dubbing set to', event.data.value);
+                    self.isDynaDubbing = !!event.data.value; // Convert to boolean
+                }
+            });
+        }
     }
 
     WebSocketService.prototype.connect = function(adminDashboardUrl) {
-        adminDashboardUrl = adminDashboardUrl || 'ws://localhost:5203/';
+        adminDashboardUrl = adminDashboardUrl || 'http://localhost:5203/';
         var self = this;
 
         // Don't attempt to connect if already connecting or max attempts reached
@@ -50,7 +63,7 @@
             this.connectionAttempts++;
             console.log('Connection attempt ' + this.connectionAttempts + '/' + this.maxConnectionAttempts);
 
-            // Convert HTTP URL to WebSocket URL if needed
+            // Convert HTTP URL to WebSocket URL
             var wsUrl = adminDashboardUrl.replace(/^http/, 'ws');
             this.socket = new WebSocket(wsUrl);
 
@@ -58,6 +71,7 @@
                 console.log('Connected to admin dashboard');
                 self.isConnected = true;
                 self.isConnecting = false;
+                // Reset connection attempts on successful connection
                 self.connectionAttempts = 0;
             };
 
@@ -66,22 +80,26 @@
                 self.isConnected = false;
                 self.isConnecting = false;
                 
+                // If not a normal closure and we haven't reached max attempts, try to reconnect
                 if (event.code !== 1000 && self.connectionAttempts < self.maxConnectionAttempts) {
                     console.log('Will retry connection in 5 seconds (attempt ' + self.connectionAttempts + '/' + self.maxConnectionAttempts + ')');
                     
+                    // Clear any existing timer
                     if (self.reconnectTimer) {
                         clearTimeout(self.reconnectTimer);
                     }
                     
+                    // Set a new timer for reconnection
                     self.reconnectTimer = setTimeout(function() {
                         self.connect(adminDashboardUrl);
-                    }, 5000);
+                    }, 5000); // 5 second delay between reconnection attempts
                 }
             };
 
             this.socket.onerror = function(error) {
                 console.error('WebSocket connection error:', error);
                 self.isConnected = false;
+                // The onclose handler will be called after this, which will handle reconnection
             };
 
             this.socket.onmessage = function(event) {
@@ -92,8 +110,13 @@
                             cb(message);
                         });
                     } else if (message.type === 'inject-instruction') {
+                        // Handle instruction from admin dashboard
                         var instruction = message.data;
+
+                        // Process the instruction
                         self.handleInstruction(instruction);
+                        
+                        // Notify callbacks
                         self.onInstructionCallbacks.forEach(function(cb) {
                             cb(instruction);
                         });
@@ -107,12 +130,12 @@
             console.error('Failed to connect to admin dashboard:', error);
             this.isConnecting = false;
             
+            // Try to reconnect if we haven't reached max attempts
             if (this.connectionAttempts < this.maxConnectionAttempts) {
                 if (this.reconnectTimer) {
                     clearTimeout(this.reconnectTimer);
                 }
                 
-                var self = this;
                 this.reconnectTimer = setTimeout(function() {
                     self.connect(adminDashboardUrl);
                 }, 5000);
@@ -120,36 +143,206 @@
         }
     };
 
+    // Register a callback for element click events received from the server
+    WebSocketService.prototype.onElementClick = function(callback) {
+        this.onElementClickCallbacks.push(callback);
+    };
+
+    // Register a callback for instruction events received from the server
+    WebSocketService.prototype.onInstruction = function(callback) {
+        this.onInstructionCallbacks.push(callback);
+    };
+
+    // Check if instruction should be applied
+    WebSocketService.prototype.shouldApplyInstruction = function(instruction) {
+        // Only apply if publish is true or isDynaDubbing is true
+        return instruction.publish === true || this.isDynaDubbing;
+    };
+
+    // Handle instructions received from the admin dashboard
+    WebSocketService.prototype.handleInstruction = function(instruction) {
+        if (!this.shouldApplyInstruction(instruction)) {
+            console.log('Instruction ignored (not published and not dubbing mode)');
+            return;
+        }
+
+        try {
+            switch (instruction.action) {
+                case 'appendHTML':
+                    this.appendHTML(instruction);
+                    break;
+                case 'replaceHTML':
+                    this.replaceHTML(instruction);
+                    break;
+                case 'removeElement':
+                    this.removeElement(instruction);
+                    break;
+                default:
+                    console.warn('Unknown instruction action:', instruction.action);
+            }
+        } catch (error) {
+            console.error('Error handling instruction:', error);
+        }
+    };
+
+    // Append HTML content to an element
+    WebSocketService.prototype.appendHTML = function(instruction) {
+        if (!instruction.selector || !instruction.content) {
+            console.error('Invalid append instruction: Missing selector or content');
+            return;
+        }
+
+        try {
+            var element = document.querySelector(instruction.selector);
+            if (!element) {
+                console.warn('Element not found for selector: ' + instruction.selector);
+                return;
+            }
+
+            // Save the original content before modification
+            var originalContent = element.innerHTML;
+            
+            // Append the new content
+            element.innerHTML += instruction.content;
+            
+            // Store the injected content for potential reversion
+            this.injectedContents.set(instruction.id, {
+                id: instruction.id,
+                action: instruction.action,
+                selector: instruction.selector,
+                content: instruction.content,
+                originalContent: originalContent,
+                element: element,
+                timestamp: instruction.timestamp
+            });
+            
+            console.log('Successfully appended HTML to ' + instruction.selector);
+        } catch (error) {
+            console.error('Error appending HTML:', error);
+        }
+    };
+
+    // Replace HTML content of an element
+    WebSocketService.prototype.replaceHTML = function(instruction) {
+        if (!instruction.selector || !instruction.content) {
+            console.error('Invalid replace instruction: Missing selector or content');
+            return;
+        }
+
+        try {
+            var element = document.querySelector(instruction.selector);
+            if (!element) {
+                console.warn('Element not found for selector: ' + instruction.selector);
+                return;
+            }
+
+            // Save the original content before replacement
+            var originalContent = element.innerHTML;
+            
+            // Replace the content
+            element.innerHTML = instruction.content;
+            
+            // Store the injected content for potential reversion
+            this.injectedContents.set(instruction.id, {
+                id: instruction.id,
+                action: instruction.action,
+                selector: instruction.selector,
+                content: instruction.content,
+                originalContent: originalContent,
+                element: element,
+                timestamp: instruction.timestamp
+            });
+            
+            console.log('Successfully replaced HTML in ' + instruction.selector);
+        } catch (error) {
+            console.error('Error replacing HTML:', error);
+        }
+    };
+
+    // Remove an element from the DOM
+    WebSocketService.prototype.removeElement = function(instruction) {
+        if (!instruction.selector) {
+            console.error('Invalid remove instruction: Missing selector');
+            return;
+        }
+
+        try {
+            var element = document.querySelector(instruction.selector);
+            if (!element) {
+                console.warn('Element not found for selector: ' + instruction.selector);
+                return;
+            }
+
+            // Save reference to parent for potential restoration
+            var parent = element.parentNode;
+            
+            // Store the removed element data for potential reversion
+            this.injectedContents.set(instruction.id, {
+                id: instruction.id,
+                action: instruction.action,
+                selector: instruction.selector,
+                originalContent: element.outerHTML,
+                element: element,
+                timestamp: instruction.timestamp
+            });
+            
+            // Remove the element
+            if (parent) {
+                parent.removeChild(element);
+            }
+            
+            console.log('Successfully removed element ' + instruction.selector);
+        } catch (error) {
+            console.error('Error removing element:', error);
+        }
+    };
+
+    // Get all active injections
+    WebSocketService.prototype.getInjections = function() {
+        return Array.from(this.injectedContents.values());
+    };
+
+    // Send element click data to the server
     WebSocketService.prototype.sendElementClick = function(elementData) {
-        if (this.socket && this.isConnected) {
+        if (this.socket && this.isConnected && this.socket.readyState === WebSocket.OPEN) {
             try {
                 var message = {
                     type: 'element-clicked',
-                    data: elementData
+                    data: elementData,
+                    timestamp: new Date().toISOString()
                 };
                 this.socket.send(JSON.stringify(message));
             } catch (error) {
                 console.error('Error sending element click data:', error);
             }
+        } else {
+            console.warn('WebSocket not connected. Cannot send element data.');
         }
     };
 
-    WebSocketService.prototype.disconnect = function() {
-        if (this.socket) {
-            this.socket.close();
-            this.socket = null;
-        }
-        this.isConnected = false;
-        this.isConnecting = false;
+    // Reset connection attempts and allow trying again
+    WebSocketService.prototype.resetConnectionAttempts = function() {
+        this.connectionAttempts = 0;
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;
         }
+        console.log('Connection attempts reset. You can try connecting again.');
     };
 
-    WebSocketService.prototype.handleInstruction = function(instruction) {
-        // Handle instructions from admin dashboard
-        console.log('Received instruction:', instruction);
+    // Disconnect from the WebSocket server
+    WebSocketService.prototype.disconnect = function() {
+        if (this.socket) {
+            this.socket.close(1000, "Normal closure");
+            this.socket = null;
+        }
+        this.isConnected = false;
+        
+        // Clear any pending reconnection timer
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
     };
 
     // Element Clicking Tracker Class
@@ -408,4 +601,5 @@
         websocketService: websocketService,
         elementTracker: elementTracker
     };
+})); 
 })); 
