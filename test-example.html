@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Element Tracker Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .demo-section {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        button, input, select {
+            margin: 5px;
+            padding: 8px 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Element Tracker CDN Test</h1>
+    
+    <div class="demo-section">
+        <h2>Click any element below to see blue outline:</h2>
+        <button>Click Me!</button>
+        <input type="text" placeholder="Type here">
+        <select>
+            <option>Option 1</option>
+            <option>Option 2</option>
+        </select>
+        <p>This is a paragraph - click it!</p>
+        <div style="padding: 10px; background: #f0f0f0; cursor: pointer;">This is a div - click it!</div>
+        <h3>This is a heading - click it!</h3>
+        <label>This is a label - click it!</label>
+    </div>
+    
+    <div class="demo-section">
+        <h2>Status:</h2>
+        <div id="status">Loading...</div>
+    </div>
+
+    <!-- Include the CDN file -->
+    <script src="./element-tracker-cdn.js"></script>
+    
+    <script>
+        const statusDiv = document.getElementById('status');
+        
+        function updateStatus(message, isSuccess) {
+            if (isSuccess === undefined) isSuccess = true;
+            statusDiv.innerHTML = '<span style="color: ' + (isSuccess ? 'green' : 'red') + ';">' + message + '</span>';
+            console.log(message);
+        }
+        
+        // Test the CDN
+        setTimeout(function() {
+            if (typeof ElementTracker !== 'undefined') {
+                updateStatus('✅ Element Tracker CDN loaded successfully!');
+                
+                // Enable element tracking
+                ElementTracker.enableElementTracking();
+                updateStatus('✅ Element tracking enabled! Click elements above to see blue outline.');
+                
+                console.log('Available methods:', Object.keys(ElementTracker));
+                console.log('Tracking enabled:', ElementTracker.isTrackingEnabled);
+                
+            } else {
+                updateStatus('❌ Element Tracker CDN failed to load!', false);
+                console.error('Make sure element-tracker-cdn.js is in the same folder');
+            }
+        }, 100);
+    </script>
+</body>
+</html> 
