@@ -160,33 +160,50 @@
 
     // Check if instruction should be applied
     WebSocketService.prototype.shouldApplyInstruction = function(instruction) {
+        console.log('🔍 shouldApplyInstruction check:');
+        console.log('  - instruction.publish:', instruction.publish);
+        console.log('  - this.isDynaDubbing:', this.isDynaDubbing);
+        
+        var shouldApply = instruction.publish === true || this.isDynaDubbing;
+        console.log('  - Final decision:', shouldApply);
+        
         // Only apply if publish is true or isDynaDubbing is true
-        return instruction.publish === true || this.isDynaDubbing;
+        return shouldApply;
     };
 
     // Handle instructions received from the admin dashboard
     WebSocketService.prototype.handleInstruction = function(instruction) {
+        console.log('🔧 handleInstruction called:', instruction);
+        
         if (!this.shouldApplyInstruction(instruction)) {
             console.log('Instruction ignored (not published and not dubbing mode)');
             return;
         }
         
+        console.log('✅ Processing instruction:', instruction.action, 'on', instruction.selector);
+        
         try {
             switch (instruction.action) {
                 case 'appendHTML':
+                    console.log('📝 Calling appendHTML...');
                     this.appendHTML(instruction);
                     break;
                 case 'replaceHTML':
+                    console.log('🔄 Calling replaceHTML...');
                     this.replaceHTML(instruction);
                     break;
                 case 'removeElement':
+                    console.log('🗑️ Calling removeElement...');
                     this.removeElement(instruction);
                     break;
                 default:
                     console.warn('Unknown instruction action:', instruction.action);
             }
+            console.log('✅ Instruction processing completed');
         } catch (error) {
-            console.error('Error handling instruction:', error);
+            console.error('❌ Error handling instruction:', error);
+            console.error('❌ Error details:', error.message);
+            console.error('❌ Stack trace:', error.stack);
         }
     };
 
@@ -229,23 +246,45 @@
 
     // Replace HTML content of an element
     WebSocketService.prototype.replaceHTML = function(instruction) {
+        console.log('🔄 replaceHTML method called with:', instruction);
+        console.log('🔄 Selector:', instruction.selector);
+        console.log('🔄 New content:', instruction.content);
+        
         if (!instruction.selector || !instruction.content) {
-            console.error('Invalid replace instruction: Missing selector or content');
+            console.error('❌ Invalid replace instruction: Missing selector or content');
+            console.log('❌ Selector provided:', !!instruction.selector);
+            console.log('❌ Content provided:', !!instruction.content);
             return;
         }
 
         try {
+            console.log('🔍 Looking for element with selector:', instruction.selector);
             var element = document.querySelector(instruction.selector);
+            console.log('🔍 Found element:', element);
+            console.log('🔍 Element exists:', !!element);
+            
             if (!element) {
-                console.warn('Element not found for selector: ' + instruction.selector);
+                console.warn('⚠️ Element not found for selector: ' + instruction.selector);
+                console.log('📋 Available elements in DOM:');
+                var allElements = document.querySelectorAll('*');
+                for (var i = 0; i < Math.min(5, allElements.length); i++) {
+                    var el = allElements[i];
+                    console.log('  - ' + el.tagName + (el.id ? '#' + el.id : '') + (el.className ? '.' + el.className.split(' ').join('.') : ''));
+                }
                 return;
             }
 
             // Save the original content before replacement
             var originalContent = element.innerHTML;
+            console.log('📋 Original content:', originalContent.substring(0, 50) + (originalContent.length > 50 ? '...' : ''));
             
             // Replace the content
+            console.log('🔄 Replacing content...');
             element.innerHTML = instruction.content;
+            
+            // Verify replacement
+            var newContent = element.innerHTML;
+            console.log('📋 New content:', newContent.substring(0, 50) + (newContent.length > 50 ? '...' : ''));
             
             // Store the injected content for potential reversion
             this.injectedContents.set(instruction.id, {
@@ -257,30 +296,60 @@
                 element: element,
                 timestamp: instruction.timestamp
             });
+            console.log('💾 Stored replacement data for potential reversion');
             
-            console.log('Successfully replaced HTML in ' + instruction.selector);
+            console.log('✅ Successfully replaced HTML in ' + instruction.selector);
         } catch (error) {
-            console.error('Error replacing HTML:', error);
+            console.error('❌ Error replacing HTML:', error);
+            console.error('❌ Error message:', error.message);
+            console.error('❌ Error stack:', error.stack);
         }
     };
 
     // Remove an element from the DOM
     WebSocketService.prototype.removeElement = function(instruction) {
+        console.log('🗑️ removeElement method called with:', instruction);
+        console.log('🗑️ Selector to remove:', instruction.selector);
+        
         if (!instruction.selector) {
-            console.error('Invalid remove instruction: Missing selector');
+            console.error('❌ Invalid remove instruction: Missing selector');
             return;
         }
 
         try {
+            console.log('🔍 Looking for element with selector:', instruction.selector);
             var element = document.querySelector(instruction.selector);
-            console.log(element);
+            console.log('🔍 Found element:', element);
+            console.log('🔍 Element exists:', !!element);
+            
+            if (element) {
+                console.log('🔍 Element details:', {
+                    tagName: element.tagName,
+                    id: element.id,
+                    className: element.className,
+                    textContent: element.textContent ? element.textContent.substring(0, 50) : 'no text'
+                });
+            }
+            
             if (!element) {
-                console.warn('Element not found for selector: ' + instruction.selector);
+                console.warn('⚠️ Element not found for selector: ' + instruction.selector);
+                console.log('📋 Available elements in DOM:');
+                var allElements = document.querySelectorAll('*');
+                for (var i = 0; i < Math.min(5, allElements.length); i++) {
+                    var el = allElements[i];
+                    console.log('  - ' + el.tagName + (el.id ? '#' + el.id : '') + (el.className ? '.' + el.className.split(' ').join('.') : ''));
+                }
                 return;
             }
 
-            // Save reference to parent and next sibling for potential restoration
+            // Save reference to parent
             var parent = element.parentNode;
+            console.log('👪 Parent element:', parent ? parent.tagName : 'no parent');
+            
+            if (!parent) {
+                console.error('❌ Element has no parent node');
+                return;
+            }
             
             // Store the removed element data for potential reversion
             this.injectedContents.set(instruction.id, {
@@ -291,15 +360,26 @@
                 element: element,
                 timestamp: instruction.timestamp
             });
+            console.log('💾 Stored removal data for potential reversion');
             
             // Remove the element
-            if (parent) {
-                parent.removeChild(element);
+            console.log('🗑️ Removing element from DOM...');
+            parent.removeChild(element);
+            
+            // Verify removal
+            var checkElement = document.querySelector(instruction.selector);
+            console.log('🔍 Verification - element still exists:', !!checkElement);
+            
+            if (!checkElement) {
+                console.log('✅ Successfully removed element ' + instruction.selector);
+            } else {
+                console.warn('⚠️ Element appears to still exist after removal');
             }
             
-            console.log('Successfully removed element ' + instruction.selector);
         } catch (error) {
-            console.error('Error removing element:', error);
+            console.error('❌ Error removing element:', error);
+            console.error('❌ Error message:', error.message);
+            console.error('❌ Error stack:', error.stack);
         }
     };
 
