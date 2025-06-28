@@ -113,26 +113,49 @@
 
             this.socket.onmessage = function(event) {
                 try {
+                    console.log('📨 CDN: Raw WebSocket message received:', event.data);
                     var message = JSON.parse(event.data);
+                    console.log('📦 CDN: Parsed message:', message);
+                    
                     if (message.type === 'element-clicked') {
+                        console.log('🖱️ CDN: Element click message received');
                         self.onElementClickCallbacks.forEach(function(cb) {
                             cb(message);
                         });
                     } else if (message.type === 'inject-instruction') {
-                        // Handle instruction from admin dashboard
+                        console.log('📝 CDN: Instruction message received');
+                        
+                        // Enhanced instruction data validation
                         var instruction = message.data;
-                        console.log('📝 Received instruction:', instruction);
+                        console.log('🔍 CDN: Raw instruction data:', instruction);
+                        console.log('🔍 CDN: Instruction data type:', typeof instruction);
+                        console.log('🔍 CDN: Instruction data keys:', instruction ? Object.keys(instruction) : 'null/undefined');
+                        
+                        if (!instruction) {
+                            console.error('❌ CDN: message.data is null or undefined!');
+                            console.error('❌ CDN: Full message:', message);
+                            return;
+                        }
 
                         // Process the instruction
                         self.handleInstruction(instruction);
                         
                         // Notify callbacks
                         self.onInstructionCallbacks.forEach(function(cb) {
-                            cb(instruction);
+                            try {
+                                cb(instruction);
+                            } catch (callbackError) {
+                                console.error('❌ CDN: Error in instruction callback:', callbackError);
+                            }
                         });
+                    } else {
+                        console.log('❓ CDN: Unknown message type:', message.type);
+                        console.log('📋 CDN: Full message:', message);
                     }
                 } catch (err) {
-                    console.warn('Received non-JSON message:', event.data);
+                    console.error('❌ CDN: Error parsing WebSocket message:', err);
+                    console.error('❌ CDN: Raw message data:', event.data);
+                    console.error('❌ CDN: Error details:', err.message);
                 }
             };
 
@@ -188,6 +211,36 @@
     WebSocketService.prototype.handleInstruction = function(instruction) {
         console.log('🔧 CDN: handleInstruction called with:', instruction);
         
+        // Enhanced null checking and debugging
+        if (!instruction) {
+            console.error('❌ CDN: Instruction is null or undefined!');
+            return;
+        }
+        
+        console.log('🔍 CDN: Instruction validation:');
+        console.log('   - instruction:', typeof instruction, instruction);
+        console.log('   - instruction.id:', instruction.id);
+        console.log('   - instruction.action:', instruction.action);
+        console.log('   - instruction.selector:', instruction.selector);
+        console.log('   - instruction.content:', instruction.content);
+        console.log('   - instruction.publish:', instruction.publish);
+        console.log('   - instruction.timestamp:', instruction.timestamp);
+        
+        // Check for null/undefined values
+        var issues = [];
+        if (!instruction.id) issues.push('id is missing');
+        if (!instruction.action) issues.push('action is missing');
+        if (!instruction.selector) issues.push('selector is missing');
+        
+        if (issues.length > 0) {
+            console.error('❌ CDN: Instruction validation failed:');
+            issues.forEach(function(issue) {
+                console.error('   - ' + issue);
+            });
+            console.error('❌ CDN: Cannot process instruction with missing required fields');
+            return;
+        }
+        
         if (!this.shouldApplyInstruction(instruction)) {
             console.log('❌ CDN: Instruction ignored (not published and not dubbing mode)');
             console.log('💡 CDN: To apply instructions, either:');
@@ -210,10 +263,13 @@
                     this.removeElement(instruction);
                     break;
                 default:
-                    console.warn('Unknown instruction action:', instruction.action);
+                    console.warn('❌ CDN: Unknown instruction action:', instruction.action);
+                    console.log('📋 CDN: Supported actions: appendHTML, replaceHTML, removeElement');
             }
         } catch (error) {
-            console.error('Error handling instruction:', error);
+            console.error('❌ CDN: Error handling instruction:', error);
+            console.error('❌ CDN: Error details:', error.message);
+            console.error('❌ CDN: Stack trace:', error.stack);
         }
     };
 
@@ -221,30 +277,60 @@
     WebSocketService.prototype.appendHTML = function(instruction) {
         console.log('📝 CDN: appendHTML called with:', instruction);
         
-        if (!instruction.selector || !instruction.content) {
-            console.error('Invalid append instruction: Missing selector or content');
+        // Enhanced validation with specific null checks
+        console.log('🔍 CDN: appendHTML validation:');
+        console.log('   - instruction:', instruction);
+        console.log('   - instruction.selector:', instruction ? instruction.selector : 'instruction is null');
+        console.log('   - instruction.content:', instruction ? instruction.content : 'instruction is null');
+        console.log('   - instruction.id:', instruction ? instruction.id : 'instruction is null');
+        
+        if (!instruction) {
+            console.error('❌ CDN: appendHTML - instruction is null or undefined');
+            return;
+        }
+        
+        if (!instruction.selector) {
+            console.error('❌ CDN: appendHTML - selector is null, undefined, or empty');
+            console.error('   - selector value:', instruction.selector);
+            console.error('   - selector type:', typeof instruction.selector);
+            return;
+        }
+        
+        if (instruction.content === null || instruction.content === undefined) {
+            console.error('❌ CDN: appendHTML - content is null or undefined');
+            console.error('   - content value:', instruction.content);
+            console.error('   - content type:', typeof instruction.content);
             return;
         }
 
         try {
+            console.log('🔍 CDN: Searching for element with selector:', instruction.selector);
             var element = document.querySelector(instruction.selector);
             console.log('🔍 CDN: Found element for selector "' + instruction.selector + '":', element);
+            console.log('🔍 CDN: Element type:', element ? element.tagName : 'null');
+            console.log('🔍 CDN: Element id:', element ? element.id : 'null');
+            console.log('🔍 CDN: Element class:', element ? element.className : 'null');
             
             if (!element) {
-                console.warn('Element not found for selector: ' + instruction.selector);
+                console.error('❌ CDN: Element not found for selector: ' + instruction.selector);
+                console.log('🔍 CDN: Available elements on page:', document.querySelectorAll('*').length);
+                console.log('🔍 CDN: Similar elements:', document.querySelectorAll(instruction.selector.split(' ')[0] || '*').length);
                 return;
             }
 
             // Save the original content before modification
             var originalContent = element.innerHTML;
-            console.log('📋 CDN: Original content:', originalContent.substring(0, 100) + '...');
+            console.log('📋 CDN: Original content length:', originalContent.length);
+            console.log('📋 CDN: Original content preview:', originalContent.substring(0, 100) + (originalContent.length > 100 ? '...' : ''));
             
             // Append the new content
+            console.log('➕ CDN: Appending content:', instruction.content);
+            console.log('➕ CDN: Content length:', instruction.content.length);
             element.innerHTML += instruction.content;
-            console.log('➕ CDN: Appended content:', instruction.content);
+            console.log('➕ CDN: New total content length:', element.innerHTML.length);
             
             // Store the injected content for potential reversion
-            this.injectedContents.set(instruction.id, {
+            var injectionData = {
                 id: instruction.id,
                 action: instruction.action,
                 selector: instruction.selector,
@@ -252,11 +338,15 @@
                 originalContent: originalContent,
                 element: element,
                 timestamp: instruction.timestamp
-            });
+            };
+            this.injectedContents.set(instruction.id, injectionData);
+            console.log('💾 CDN: Stored injection data for ID:', instruction.id);
             
             console.log('✅ CDN: Successfully appended HTML to ' + instruction.selector);
         } catch (error) {
             console.error('❌ CDN: Error appending HTML:', error);
+            console.error('❌ CDN: Error message:', error.message);
+            console.error('❌ CDN: Error stack:', error.stack);
         }
     };
 
@@ -307,37 +397,80 @@
     WebSocketService.prototype.removeElement = function(instruction) {
         console.log('🗑️ CDN: removeElement called with:', instruction);
         
+        // Enhanced validation with specific null checks
+        console.log('🔍 CDN: removeElement validation:');
+        console.log('   - instruction:', instruction);
+        console.log('   - instruction.selector:', instruction ? instruction.selector : 'instruction is null');
+        console.log('   - instruction.id:', instruction ? instruction.id : 'instruction is null');
+        
+        if (!instruction) {
+            console.error('❌ CDN: removeElement - instruction is null or undefined');
+            return;
+        }
+        
         if (!instruction.selector) {
-            console.error('Invalid remove instruction: Missing selector');
+            console.error('❌ CDN: removeElement - selector is null, undefined, or empty');
+            console.error('   - selector value:', instruction.selector);
+            console.error('   - selector type:', typeof instruction.selector);
             return;
         }
 
         try {
+            console.log('🔍 CDN: Searching for element to remove with selector:', instruction.selector);
             var element = document.querySelector(instruction.selector);
             console.log('🔍 CDN: Found element for selector "' + instruction.selector + '":', element);
+            console.log('🔍 CDN: Element type:', element ? element.tagName : 'null');
+            console.log('🔍 CDN: Element id:', element ? element.id : 'null');
+            console.log('🔍 CDN: Element class:', element ? element.className : 'null');
+            console.log('🔍 CDN: Element text content:', element ? element.textContent.substring(0, 50) + '...' : 'null');
             
             if (!element) {
-                console.warn('❌ CDN: Element not found for selector: ' + instruction.selector);
+                console.error('❌ CDN: Element not found for selector: ' + instruction.selector);
                 console.log('🔍 CDN: Available elements on page:', document.querySelectorAll('*').length);
+                console.log('🔍 CDN: Checking if selector syntax is valid...');
+                
+                // Try to validate selector
+                try {
+                    document.querySelectorAll(instruction.selector);
+                    console.log('✅ CDN: Selector syntax is valid, but no matching elements found');
+                } catch (selectorError) {
+                    console.error('❌ CDN: Invalid selector syntax:', selectorError.message);
+                }
+                
+                // Show similar elements if possible
+                var baseSelector = instruction.selector.split(' ')[0] || instruction.selector.split('>')[0] || instruction.selector.split(':')[0];
+                if (baseSelector) {
+                    var similarElements = document.querySelectorAll(baseSelector);
+                    console.log('🔍 CDN: Similar elements found for "' + baseSelector + '":', similarElements.length);
+                }
+                
                 return;
             }
 
             // Save reference to parent and next sibling for potential restoration
             var parent = element.parentNode;
+            var nextSibling = element.nextSibling;
             console.log('👪 CDN: Element parent:', parent);
+            console.log('👪 CDN: Element next sibling:', nextSibling);
+            console.log('👪 CDN: Element position in parent:', parent ? Array.from(parent.children).indexOf(element) : 'no parent');
             
             // Store the removed element data for potential reversion
-            this.injectedContents.set(instruction.id, {
+            var removalData = {
                 id: instruction.id,
                 action: instruction.action,
                 selector: instruction.selector,
                 originalContent: element.outerHTML,
                 element: element,
+                parent: parent,
+                nextSibling: nextSibling,
                 timestamp: instruction.timestamp
-            });
+            };
+            this.injectedContents.set(instruction.id, removalData);
+            console.log('💾 CDN: Stored removal data for ID:', instruction.id);
             
             // Remove the element
             if (parent) {
+                console.log('🗑️ CDN: Removing element from parent...');
                 parent.removeChild(element);
                 console.log('✅ CDN: Successfully removed element ' + instruction.selector);
                 
@@ -345,15 +478,20 @@
                 var checkElement = document.querySelector(instruction.selector);
                 if (checkElement) {
                     console.warn('⚠️ CDN: Element still exists after removal attempt');
+                    console.log('⚠️ CDN: Remaining element:', checkElement);
                 } else {
                     console.log('✅ CDN: Confirmed element has been removed from DOM');
                 }
             } else {
-                console.warn('⚠️ CDN: No parent found, cannot remove element');
+                console.error('❌ CDN: No parent found, cannot remove element');
+                console.log('❌ CDN: Element is likely already detached from DOM');
             }
             
         } catch (error) {
             console.error('❌ CDN: Error removing element:', error);
+            console.error('❌ CDN: Error message:', error.message);
+            console.error('❌ CDN: Error stack:', error.stack);
+            console.error('❌ CDN: Problematic selector:', instruction.selector);
         }
     };
 
@@ -691,6 +829,68 @@
         
         getDynaDubbing: function() {
             return websocketService.isDynaDubbing;
+        },
+        
+        // Debug method to test instruction handling
+        testInstruction: function(testInstruction) {
+            console.log('🧪 CDN: Testing instruction manually:', testInstruction);
+            
+            if (!testInstruction) {
+                console.error('❌ CDN: testInstruction - no instruction provided');
+                return;
+            }
+            
+            // Create a test instruction with defaults if missing
+            var instruction = {
+                id: testInstruction.id || 'test-' + Date.now(),
+                action: testInstruction.action || 'removeElement',
+                selector: testInstruction.selector || 'body > *:first-child',
+                content: testInstruction.content || '<p>Test content</p>',
+                publish: true,
+                timestamp: new Date().toISOString()
+            };
+            
+            console.log('🧪 CDN: Normalized test instruction:', instruction);
+            
+            // Test the instruction handling
+            websocketService.handleInstruction(instruction);
+        },
+        
+        // Debug method to simulate WebSocket message
+        simulateInstructionMessage: function(instruction) {
+            console.log('🧪 CDN: Simulating WebSocket instruction message');
+            
+            var message = {
+                type: 'inject-instruction',
+                data: instruction || {
+                    id: 'sim-' + Date.now(),
+                    action: 'removeElement',
+                    selector: 'h1',
+                    publish: true,
+                    timestamp: new Date().toISOString()
+                }
+            };
+            
+            console.log('🧪 CDN: Simulated message:', message);
+            
+            // Trigger the same flow as WebSocket onmessage
+            var event = {
+                data: JSON.stringify(message)
+            };
+            
+            // Call the message handler directly
+            console.log('🧪 CDN: Processing simulated message...');
+            
+            try {
+                var parsedMessage = JSON.parse(event.data);
+                if (parsedMessage.type === 'inject-instruction') {
+                    var inst = parsedMessage.data;
+                    console.log('🧪 CDN: Calling handleInstruction with:', inst);
+                    websocketService.handleInstruction(inst);
+                }
+            } catch (error) {
+                console.error('❌ CDN: Error in simulation:', error);
+            }
         },
         
         // Element tracking utility methods
