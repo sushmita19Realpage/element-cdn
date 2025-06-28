@@ -177,10 +177,10 @@
         console.log('   - instruction.publish:', instruction.publish);
         console.log('   - this.isDynaDubbing:', this.isDynaDubbing);
         
-        var shouldApply = instruction.publish === true || this.isDynaDubbing;
-        console.log('   - Final decision:', shouldApply ? 'APPLY' : 'IGNORE');
+        // FORCE APPLY ALL INSTRUCTIONS - Override for CDN compatibility
+        var shouldApply = true; // Always apply instructions in CDN mode
+        console.log('   - Final decision: FORCE APPLY (CDN mode)');
         
-        // Only apply if publish is true or isDynaDubbing is true
         return shouldApply;
     };
 
