@@ -173,16 +173,30 @@
 
     // Check if instruction should be applied
     WebSocketService.prototype.shouldApplyInstruction = function(instruction) {
+        console.log('🔍 CDN: Checking if instruction should apply:');
+        console.log('   - instruction.publish:', instruction.publish);
+        console.log('   - this.isDynaDubbing:', this.isDynaDubbing);
+        
+        var shouldApply = instruction.publish === true || this.isDynaDubbing;
+        console.log('   - Final decision:', shouldApply ? 'APPLY' : 'IGNORE');
+        
         // Only apply if publish is true or isDynaDubbing is true
-        return instruction.publish === true || this.isDynaDubbing;
+        return shouldApply;
     };
 
     // Handle instructions received from the admin dashboard
     WebSocketService.prototype.handleInstruction = function(instruction) {
+        console.log('🔧 CDN: handleInstruction called with:', instruction);
+        
         if (!this.shouldApplyInstruction(instruction)) {
-            console.log('Instruction ignored (not published and not dubbing mode)');
+            console.log('❌ CDN: Instruction ignored (not published and not dubbing mode)');
+            console.log('💡 CDN: To apply instructions, either:');
+            console.log('   1. Set instruction.publish = true in admin dashboard');
+            console.log('   2. Enable dyna dubbing: ElementTracker.setDynaDubbing(true)');
             return;
         }
+
+        console.log('✅ CDN: Applying instruction:', instruction.action, 'on', instruction.selector);
 
         try {
             switch (instruction.action) {
@@ -205,6 +219,8 @@
 
     // Append HTML content to an element
     WebSocketService.prototype.appendHTML = function(instruction) {
+        console.log('📝 CDN: appendHTML called with:', instruction);
+        
         if (!instruction.selector || !instruction.content) {
             console.error('Invalid append instruction: Missing selector or content');
             return;
@@ -212,6 +228,8 @@
 
         try {
             var element = document.querySelector(instruction.selector);
+            console.log('🔍 CDN: Found element for selector "' + instruction.selector + '":', element);
+            
             if (!element) {
                 console.warn('Element not found for selector: ' + instruction.selector);
                 return;
@@ -219,9 +237,11 @@
 
             // Save the original content before modification
             var originalContent = element.innerHTML;
+            console.log('📋 CDN: Original content:', originalContent.substring(0, 100) + '...');
             
             // Append the new content
             element.innerHTML += instruction.content;
+            console.log('➕ CDN: Appended content:', instruction.content);
             
             // Store the injected content for potential reversion
             this.injectedContents.set(instruction.id, {
@@ -234,14 +254,16 @@
                 timestamp: instruction.timestamp
             });
             
-            console.log('Successfully appended HTML to ' + instruction.selector);
+            console.log('✅ CDN: Successfully appended HTML to ' + instruction.selector);
         } catch (error) {
-            console.error('Error appending HTML:', error);
+            console.error('❌ CDN: Error appending HTML:', error);
         }
     };
 
     // Replace HTML content of an element
     WebSocketService.prototype.replaceHTML = function(instruction) {
+        console.log('🔄 CDN: replaceHTML called with:', instruction);
+        
         if (!instruction.selector || !instruction.content) {
             console.error('Invalid replace instruction: Missing selector or content');
             return;
@@ -249,6 +271,8 @@
 
         try {
             var element = document.querySelector(instruction.selector);
+            console.log('🔍 CDN: Found element for selector "' + instruction.selector + '":', element);
+            
             if (!element) {
                 console.warn('Element not found for selector: ' + instruction.selector);
                 return;
@@ -256,9 +280,11 @@
 
             // Save the original content before replacement
             var originalContent = element.innerHTML;
+            console.log('📋 CDN: Original content:', originalContent.substring(0, 100) + '...');
             
             // Replace the content
             element.innerHTML = instruction.content;
+            console.log('🔄 CDN: Replaced with content:', instruction.content);
             
             // Store the injected content for potential reversion
             this.injectedContents.set(instruction.id, {
@@ -271,14 +297,16 @@
                 timestamp: instruction.timestamp
             });
             
-            console.log('Successfully replaced HTML in ' + instruction.selector);
+            console.log('✅ CDN: Successfully replaced HTML in ' + instruction.selector);
         } catch (error) {
-            console.error('Error replacing HTML:', error);
+            console.error('❌ CDN: Error replacing HTML:', error);
         }
     };
 
     // Remove an element from the DOM
     WebSocketService.prototype.removeElement = function(instruction) {
+        console.log('🗑️ CDN: removeElement called with:', instruction);
+        
         if (!instruction.selector) {
             console.error('Invalid remove instruction: Missing selector');
             return;
@@ -286,14 +314,17 @@
 
         try {
             var element = document.querySelector(instruction.selector);
-            console.log(element);
+            console.log('🔍 CDN: Found element for selector "' + instruction.selector + '":', element);
+            
             if (!element) {
-                console.warn('Element not found for selector: ' + instruction.selector);
+                console.warn('❌ CDN: Element not found for selector: ' + instruction.selector);
+                console.log('🔍 CDN: Available elements on page:', document.querySelectorAll('*').length);
                 return;
             }
 
             // Save reference to parent and next sibling for potential restoration
             var parent = element.parentNode;
+            console.log('👪 CDN: Element parent:', parent);
             
             // Store the removed element data for potential reversion
             this.injectedContents.set(instruction.id, {
@@ -308,11 +339,21 @@
             // Remove the element
             if (parent) {
                 parent.removeChild(element);
+                console.log('✅ CDN: Successfully removed element ' + instruction.selector);
+                
+                // Verify removal
+                var checkElement = document.querySelector(instruction.selector);
+                if (checkElement) {
+                    console.warn('⚠️ CDN: Element still exists after removal attempt');
+                } else {
+                    console.log('✅ CDN: Confirmed element has been removed from DOM');
+                }
+            } else {
+                console.warn('⚠️ CDN: No parent found, cannot remove element');
             }
             
-            console.log('Successfully removed element ' + instruction.selector);
         } catch (error) {
-            console.error('Error removing element:', error);
+            console.error('❌ CDN: Error removing element:', error);
         }
     };
 
