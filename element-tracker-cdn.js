@@ -47,6 +47,8 @@
         adminDashboardUrl = adminDashboardUrl || 'http://localhost:5203/';
         var self = this;
 
+        console.log('🔄 ElementTracker: Starting connection to', adminDashboardUrl);
+
         // Don't attempt to connect if already connecting or max attempts reached
         if (this.isConnecting) {
             console.warn('Connection attempt already in progress');
@@ -65,10 +67,12 @@
 
             // Convert HTTP URL to WebSocket URL
             var wsUrl = adminDashboardUrl.replace(/^http/, 'ws');
+            console.log('🌐 Connecting to WebSocket URL:', wsUrl);
             this.socket = new WebSocket(wsUrl);
 
             this.socket.onopen = function() {
-                console.log('Connected to admin dashboard');
+                console.log('✅ Connected to admin dashboard');
+                console.log('🎉 WebSocket connection established successfully!');
                 self.isConnected = true;
                 self.isConnecting = false;
                 // Reset connection attempts on successful connection
@@ -76,13 +80,17 @@
             };
 
             this.socket.onclose = function(event) {
-                console.log('Disconnected from admin dashboard: Code ' + event.code + ' - ' + event.reason);
+                console.log('❌ Disconnected from admin dashboard: Code ' + event.code + ' - ' + event.reason);
+                if (event.code === 1006) {
+                    console.error('🚫 Connection failed - Server not reachable at ' + adminDashboardUrl);
+                    console.info('💡 Make sure your admin dashboard is running on ' + adminDashboardUrl);
+                }
                 self.isConnected = false;
                 self.isConnecting = false;
                 
                 // If not a normal closure and we haven't reached max attempts, try to reconnect
                 if (event.code !== 1000 && self.connectionAttempts < self.maxConnectionAttempts) {
-                    console.log('Will retry connection in 5 seconds (attempt ' + self.connectionAttempts + '/' + self.maxConnectionAttempts + ')');
+                    console.log('🔄 Will retry connection in 5 seconds (attempt ' + self.connectionAttempts + '/' + self.maxConnectionAttempts + ')');
                     
                     // Clear any existing timer
                     if (self.reconnectTimer) {
@@ -97,7 +105,8 @@
             };
 
             this.socket.onerror = function(error) {
-                console.error('WebSocket connection error:', error);
+                console.error('⚠️ WebSocket connection error:', error);
+                console.error('🔍 Check if admin dashboard is running on:', adminDashboardUrl);
                 self.isConnected = false;
                 // The onclose handler will be called after this, which will handle reconnection
             };
@@ -112,7 +121,7 @@
                     } else if (message.type === 'inject-instruction') {
                         // Handle instruction from admin dashboard
                         var instruction = message.data;
-                        console.log('Received instruction:', instruction);
+                        console.log('📝 Received instruction:', instruction);
 
                         // Process the instruction
                         self.handleInstruction(instruction);
@@ -127,8 +136,16 @@
                 }
             };
 
+            // Add timeout to detect hanging connections
+            setTimeout(function() {
+                if (self.isConnecting && !self.isConnected) {
+                    console.warn('⏰ Connection timeout - taking longer than expected');
+                    console.info('🔍 Server might be starting up or not responding');
+                }
+            }, 5000);
+
         } catch (error) {
-            console.error('Failed to connect to admin dashboard:', error);
+            console.error('❌ Failed to connect to admin dashboard:', error);
             this.isConnecting = false;
             
             // Try to reconnect if we haven't reached max attempts
