@@ -323,14 +323,21 @@
 
     // Send element click data to the server
     WebSocketService.prototype.sendElementClick = function(elementData) {
+        console.log('🔍 CDN: sendElementClick called with data:', elementData);
+        
         if (this.socket && this.isConnected && this.socket.readyState === WebSocket.OPEN) {
-            this.socket.send(JSON.stringify({
+            var messageToSend = {
                 type: 'element-clicked',
                 data: elementData,
                 timestamp: new Date().toISOString()
-            }));
+            };
+            
+            console.log('🔍 CDN: Sending WebSocket message:', messageToSend);
+            this.socket.send(JSON.stringify(messageToSend));
+            console.log('✅ CDN: Message sent successfully');
         } else {
             console.warn('WebSocket not connected. Cannot send element data.');
+            console.log('🔍 CDN: WebSocket state - connected:', this.isConnected, 'socket:', !!this.socket, 'readyState:', this.socket ? this.socket.readyState : 'no socket');
         }
     };
 
@@ -490,19 +497,32 @@
     };
 
     ElementClickingTracker.prototype.sendElementData = function(element) {
+        console.log('🔍 CDN: sendElementData called with element:', element);
+        
         var tagName = element.tagName ? element.tagName.toLowerCase() : '';
         var id = element.id || null;
         var className = element.className || null;
         
+        console.log('🔍 CDN: Basic element properties:', {
+            tagName: tagName,
+            id: id,
+            className: className,
+            nodeName: element.nodeName,
+            nodeType: element.nodeType
+        });
+        
         // Extract attributes
         var attributes = {};
         if (element.attributes) {
+            console.log('🔍 CDN: Element has', element.attributes.length, 'attributes');
             for (var i = 0; i < element.attributes.length; i++) {
                 var attr = element.attributes[i];
                 if (attr.name !== 'class' && attr.name !== 'id' && attr.name !== 'style') {
                     attributes[attr.name] = attr.value;
                 }
             }
+        } else {
+            console.log('🔍 CDN: Element has no attributes');
         }
         
         var elementData = {
@@ -517,6 +537,9 @@
             timestamp: new Date().toISOString(),
             path: this.getElementPath(element)
         };
+        
+        console.log('🔍 CDN: Constructed elementData:', elementData);
+        console.log('🔍 CDN: About to send via WebSocket, connected:', this.websocketService.isConnected);
         
         this.websocketService.sendElementClick(elementData);
     };
