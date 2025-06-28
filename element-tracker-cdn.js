@@ -592,14 +592,41 @@
     // Link the websocket service to element tracker
     elementTracker.websocketService = websocketService;
 
+    // Initialize with debug logging
+    console.log('🔧 ElementTracker CDN: Initializing...');
+    console.log('🌐 Environment check:', {
+        hasWindow: typeof window !== 'undefined',
+        hasDocument: typeof document !== 'undefined',
+        hasWebSocket: typeof WebSocket !== 'undefined'
+    });
+    
+    // Environment compatibility checks
+    if (typeof window === 'undefined') {
+        console.warn('⚠️ ElementTracker CDN: No window object detected - may not work in non-browser environments');
+    }
+    
+    if (typeof WebSocket === 'undefined') {
+        console.warn('⚠️ ElementTracker CDN: No WebSocket support detected - connection features will not work');
+    }
+
     // Public API
-    return {
+    var ElementTrackerAPI = {
         // Main methods
         enableElementTracking: function() {
             elementTracker.enable();
         },
         
+        // Alias for backward compatibility
+        startTracking: function() {
+            elementTracker.enable();
+        },
+        
         disableElementTracking: function() {
+            elementTracker.disable();
+        },
+        
+        // Alias for backward compatibility  
+        stopTracking: function() {
             elementTracker.disable();
         },
         
@@ -702,6 +729,37 @@
         
         // Direct access to services (for advanced usage)
         websocketService: websocketService,
-        elementTracker: elementTracker
+        elementTracker: elementTracker,
+        
+        // Version info for debugging
+        version: '1.0.0',
+        buildDate: new Date().toISOString()
     };
+    
+    // Final initialization logging
+    console.log('✅ ElementTracker CDN: Initialized successfully!');
+    console.log('📋 Available methods:', Object.keys(ElementTrackerAPI).filter(key => typeof ElementTrackerAPI[key] === 'function'));
+    
+    // Auto-initialization if script has data-auto-init attribute
+    if (typeof document !== 'undefined') {
+        var currentScript = document.currentScript || 
+                           (function() {
+                               var scripts = document.getElementsByTagName('script');
+                               return scripts[scripts.length - 1];
+                           })();
+        
+        if (currentScript && currentScript.getAttribute('data-auto-init') === 'true') {
+            console.log('🚀 Auto-initializing ElementTracker...');
+            setTimeout(function() {
+                ElementTrackerAPI.enableElementTracking();
+                
+                var adminUrl = currentScript.getAttribute('data-admin-url') || 'http://localhost:5203/';
+                ElementTrackerAPI.connect(adminUrl);
+                
+                console.log('🎉 ElementTracker auto-initialized!');
+            }, 100);
+        }
+    }
+    
+    return ElementTrackerAPI;
 })); 
