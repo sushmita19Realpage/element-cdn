@@ -112,6 +112,7 @@
                     } else if (message.type === 'inject-instruction') {
                         // Handle instruction from admin dashboard
                         var instruction = message.data;
+                        console.log('Received instruction:', instruction);
 
                         // Process the instruction
                         self.handleInstruction(instruction);
@@ -268,12 +269,13 @@
 
         try {
             var element = document.querySelector(instruction.selector);
+            console.log(element);
             if (!element) {
                 console.warn('Element not found for selector: ' + instruction.selector);
                 return;
             }
 
-            // Save reference to parent for potential restoration
+            // Save reference to parent and next sibling for potential restoration
             var parent = element.parentNode;
             
             // Store the removed element data for potential reversion
@@ -305,16 +307,11 @@
     // Send element click data to the server
     WebSocketService.prototype.sendElementClick = function(elementData) {
         if (this.socket && this.isConnected && this.socket.readyState === WebSocket.OPEN) {
-            try {
-                var message = {
-                    type: 'element-clicked',
-                    data: elementData,
-                    timestamp: new Date().toISOString()
-                };
-                this.socket.send(JSON.stringify(message));
-            } catch (error) {
-                console.error('Error sending element click data:', error);
-            }
+            this.socket.send(JSON.stringify({
+                type: 'element-clicked',
+                data: elementData,
+                timestamp: new Date().toISOString()
+            }));
         } else {
             console.warn('WebSocket not connected. Cannot send element data.');
         }
@@ -335,8 +332,8 @@
         if (this.socket) {
             this.socket.close(1000, "Normal closure");
             this.socket = null;
+            this.isConnected = false;
         }
-        this.isConnected = false;
         
         // Clear any pending reconnection timer
         if (this.reconnectTimer) {
