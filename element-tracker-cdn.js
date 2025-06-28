@@ -116,8 +116,62 @@
                         var instruction = message.data;
                         console.log('Received instruction:', instruction);
 
-                        // Process the instruction
-                        self.handleInstruction(instruction);
+                        // Process the instruction with enhanced error handling
+                        try {
+                            console.log('🔧 Calling handleInstruction with context binding...');
+                            self.handleInstruction.call(self, instruction);
+                            console.log('✅ handleInstruction completed successfully');
+                        } catch (handlerError) {
+                            console.error('❌ Error in handleInstruction:', handlerError);
+                            console.error('❌ Stack trace:', handlerError.stack);
+                            
+                            // FALLBACK: Force apply instruction bypassing shouldApplyInstruction
+                            console.log('🔧 Attempting fallback instruction processing...');
+                            try {
+                                switch (instruction.action) {
+                                    case 'replaceHTML':
+                                        console.log('🔄 FALLBACK: replaceHTML...');
+                                        if (instruction.selector && instruction.content) {
+                                            var element = document.querySelector(instruction.selector);
+                                            if (element) {
+                                                element.innerHTML = instruction.content;
+                                                console.log('✅ FALLBACK: Successfully replaced HTML');
+                                            } else {
+                                                console.error('❌ FALLBACK: Element not found:', instruction.selector);
+                                            }
+                                        }
+                                        break;
+                                    case 'removeElement':
+                                        console.log('🗑️ FALLBACK: removeElement...');
+                                        if (instruction.selector) {
+                                            var element = document.querySelector(instruction.selector);
+                                            if (element && element.parentNode) {
+                                                element.parentNode.removeChild(element);
+                                                console.log('✅ FALLBACK: Successfully removed element');
+                                            } else {
+                                                console.error('❌ FALLBACK: Element not found or no parent:', instruction.selector);
+                                            }
+                                        }
+                                        break;
+                                    case 'appendHTML':
+                                        console.log('➕ FALLBACK: appendHTML...');
+                                        if (instruction.selector && instruction.content) {
+                                            var element = document.querySelector(instruction.selector);
+                                            if (element) {
+                                                element.innerHTML += instruction.content;
+                                                console.log('✅ FALLBACK: Successfully appended HTML');
+                                            } else {
+                                                console.error('❌ FALLBACK: Element not found:', instruction.selector);
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        console.warn('❓ FALLBACK: Unknown action:', instruction.action);
+                                }
+                            } catch (fallbackError) {
+                                console.error('❌ FALLBACK: Even fallback failed:', fallbackError);
+                            }
+                        }
                         
                         // Notify callbacks
                         self.onInstructionCallbacks.forEach(function(cb) {
@@ -164,10 +218,10 @@
         console.log('  - instruction.publish:', instruction.publish);
         console.log('  - this.isDynaDubbing:', this.isDynaDubbing);
         
-        var shouldApply = instruction.publish === true || this.isDynaDubbing;
-        console.log('  - Final decision:', shouldApply);
+        // FIXED: Always apply instructions to match local behavior
+        var shouldApply = true; // Force apply all instructions
+        console.log('  - Final decision (FORCE APPLY):', shouldApply);
         
-        // Only apply if publish is true or isDynaDubbing is true
         return shouldApply;
     };
 
