@@ -884,14 +884,17 @@
                            })();
         
         if (currentScript && currentScript.getAttribute('data-auto-init') === 'true') {
-            console.log('🚀 Auto-initializing ElementTracker...');
+            console.log('🚀 Auto-initializing ElementTracker with local React app behavior...');
             setTimeout(function() {
+                // Ensure exact local app behavior
+                ElementTrackerAPI.setDynaDubbing(true);
                 ElementTrackerAPI.enableElementTracking();
                 
                 var adminUrl = currentScript.getAttribute('data-admin-url') || 'http://localhost:5203/';
                 ElementTrackerAPI.connect(adminUrl);
                 
-                console.log('🎉 ElementTracker auto-initialized!');
+                console.log('🎉 ElementTracker auto-initialized to match local React app!');
+                console.log('💡 isDynaDubbing:', ElementTrackerAPI.getDynaDubbing());
             }, 100);
         }
     }
